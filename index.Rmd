@@ -1,0 +1,68 @@
+---
+title: "Barbell lift Predictions"
+author: Kaelyn Sumigray
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Introduction
+In this project, we used data from accelerometers on the belt, forearm, and dumbbell of six participants performing barbell lifts correctly or incorrectly in five different ways. Our goal is to predict the manner in which they did the exercise. 
+
+### Preprocessing and exploratory data analysis
+Load the datasets and necessary packages
+```{r, load_data}
+library(ggplot2)
+library(caret)
+library(parallel)
+library(doParallel)
+library(dplyr)
+training <- read.csv("/Users/kaelyn/pml-training.csv")
+testing <- read.csv("/Users/kaelyn/pml-testing.csv")
+names(training)
+dim(training)
+dim(testing)
+```
+
+There are some identification columns and time stamps that we don't need, so we will remove them from our datasets.
+```{r, remove_unnecessary_cols}
+training_sub <- training[8:160]
+testing_sub <- testing[8:160]
+```
+
+Many of the columns contain a large amount of NA values. We will omit these columns, as well as the columns that are summary statistics of the raw data. 
+```{r, delete_NAs}
+training_sub2 <- training_sub[, colSums(is.na(training_sub)) < nrow(training_sub)*.5]
+training_sub2 <- select(training_sub2, -starts_with("kurtosis"), -starts_with("skewness"), -starts_with("max"), -starts_with('min'), -starts_with("amplitude"))
+dim(training_sub2)
+
+testing_sub2 <- testing_sub[, colSums(is.na(testing_sub)) < nrow(testing_sub)*.5]
+testing_sub2 <- select(testing_sub2, -starts_with("kurtosis"), -starts_with("skewness"), -starts_with("max"), -starts_with('min'), -starts_with("amplitude"))
+dim(testing_sub2)
+```
+
+### Model fitting using Random Forests
+
+Now that we have transformed the training and testing data frames similarly, I will try to fit the training model by random forests, using 10 k-folds cross-validation. 
+```{r, random_forest, cache=TRUE}
+x <- training_sub2[, -53]
+y <- training_sub2[, 53]
+set.seed(1121)
+cluster <- makeCluster(detectCores() - 1)
+registerDoParallel(cluster)
+fitControl <- trainControl(method = "cv", number = 10, allowParallel = TRUE)
+fit <- train(x,y, method="rf",data=training_sub,trControl = fitControl)
+fit
+fit$finalModel
+```
+Thus, the accuracy of the model is 99.5% and the out of sample error is 0.41%.
+
+Now let's predict the class of the test data using this model.
+```{r, predict_test_data}
+pred <- predict(fit, testing_sub2)
+pred
+```
+
+
